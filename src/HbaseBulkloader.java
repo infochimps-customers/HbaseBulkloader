@@ -23,6 +23,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.util.ToolRunner;
 
+import com.google.common.base.Function;
 /*
  * Sample uploader.
  * 
@@ -53,7 +54,39 @@ public class HbaseBulkloader extends Configured implements Tool {
     
     public static class HbaseLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
         
+        private long checkpoint = 100;
+        private long count = 0;
+        
         public void map(LongWritable key, Text line, Context context) throws IOException {
+            String[] fields = line.toString().split("\t");
+            if(fields.length != 4) {
+                return;
+            }
+      
+            // Extract each value
+            byte [] row = Bytes.toBytes(fields[0]);
+            byte [] family = Bytes.toBytes(fields[1]);
+            byte [] qualifier = Bytes.toBytes(fields[2]);
+            byte [] value = Bytes.toBytes(fields[3]);
+      
+            // Create Put
+            Put put = new Put(row);
+            put.add(family, qualifier, value);
+      
+            // Uncomment below to disable WAL. This will improve performance but means
+            // you will experience data loss in the case of a RegionServer crash.
+            // put.setWriteToWAL(false);
+      
+            try {
+                context.write(new ImmutableBytesWritable(row), put);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+      
+            // Set status every checkpoint lines
+            if(++count % checkpoint == 0) {
+                context.setStatus("Emitting Put " + count);
+            }
         }
     }
         
@@ -87,96 +120,7 @@ public class HbaseBulkloader extends Configured implements Tool {
     }
 
     public static void main(String[] args) throws Exception {
-        int res = ToolRunner.run(new HBaseConfiguration(), new HbaseBulkloader(), args);
+        int res = ToolRunner.run(HBaseConfiguration.create(), new HbaseBulkloader(), args);
         System.exit(res);
     }
 }
-
-// public class SampleUploader {
-// 
-//   private static final String NAME = "SampleUploader";
-//   
-//   static class Uploader 
-//   extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
-// 
-//     private long checkpoint = 100;
-//     private long count = 0;
-//     
-//     @Override
-//     public void map(LongWritable key, Text line, Context context)
-//     throws IOException {
-//       
-//       // Input is a CSV file
-//       // Each map() is a single line, where the key is the line number
-//       // Each line is comma-delimited; row,family,qualifier,value
-//             
-//       // Split CSV line
-//       String [] values = line.toString().split(",");
-//       if(values.length != 4) {
-//         return;
-//       }
-//       
-//       // Extract each value
-//       byte [] row = Bytes.toBytes(values[0]);
-//       byte [] family = Bytes.toBytes(values[1]);
-//       byte [] qualifier = Bytes.toBytes(values[2]);
-//       byte [] value = Bytes.toBytes(values[3]);
-//       
-//       // Create Put
-//       Put put = new Put(row);
-//       put.add(family, qualifier, value);
-//       
-//       // Uncomment below to disable WAL. This will improve performance but means
-//       // you will experience data loss in the case of a RegionServer crash.
-//       // put.setWriteToWAL(false);
-//       
-//       try {
-//         context.write(new ImmutableBytesWritable(row), put);
-//       } catch (InterruptedException e) {
-//         e.printStackTrace();
-//       }
-//       
-//       // Set status every checkpoint lines
-//       if(++count % checkpoint == 0) {
-//         context.setStatus("Emitting Put " + count);
-//       }
-//     }
-//   }
-//   
-//   /**
-//    * Job configuration.
-//    */
-//   public static Job configureJob(Configuration conf, String [] args)
-//   throws IOException {
-//     Path inputPath = new Path(args[0]);
-//     String tableName = args[1];
-//     Job job = new Job(conf, NAME + "_" + tableName);
-//     job.setJarByClass(Uploader.class);
-//     FileInputFormat.setInputPaths(job, inputPath);
-//     job.setInputFormatClass(SequenceFileInputFormat.class);
-//     job.setMapperClass(Uploader.class);
-//     // No reducers.  Just write straight to table.  Call initTableReducerJob
-//     // because it sets up the TableOutputFormat.
-//     TableMapReduceUtil.initTableReducerJob(tableName, null, job);
-//     job.setNumReduceTasks(0);
-//     return job;
-//   }
-// 
-//   /**
-//    * Main entry point.
-//    * 
-//    * @param args  The command line parameters.
-//    * @throws Exception When running the job fails.
-//    */
-//   public static void main(String[] args) throws Exception {
-//     HBaseConfiguration conf = new HBaseConfiguration();
-//     String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-//     if(otherArgs.length != 2) {
-//       System.err.println("Wrong number of arguments: " + otherArgs.length);
-//       System.err.println("Usage: " + NAME + " <input> <tablename>");
-//       System.exit(-1);
-//     }
-//     Job job = configureJob(conf, otherArgs);
-//     System.exit(job.waitForCompletion(true) ? 0 : 1);
-//   }
-// }
