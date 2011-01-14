@@ -128,8 +128,14 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
     }
         
     public int run(String[] args) throws Exception {
+        Configuration config = getConf();
+
+        config.set("hbase.zookeeper.quorum", "10.116.67.209");
+        config.set("hbase.zookeeper.property.clientPort", "2181");
+
         Job job  = new Job(getConf());
-        
+
+
         // Set job class and job name
         job.setJarByClass(HbaseTableBulkLoader.class);
         job.setJobName("HbaseTableBulkLoader");
