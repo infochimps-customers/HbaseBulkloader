@@ -128,13 +128,7 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
     }
         
     public int run(String[] args) throws Exception {
-        Configuration config = getConf();
-
-        config.set("hbase.zookeeper.quorum", "10.116.67.209");
-        config.set("hbase.zookeeper.property.clientPort", "2181");
-
-        Job job  = new Job(getConf());
-
+       Job job  = new Job(getConf());
 
         // Set job class and job name
         job.setJarByClass(HbaseTableBulkLoader.class);
@@ -146,7 +140,9 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
 
         // Hbase specific setup
         Configuration conf = job.getConfiguration();
-        TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job);
+        //TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job);
+
+        TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job, null, "10.116.67.209:2181", null, null);
         // Handle input path
         List<String> other_args = new ArrayList<String>();
         for (int i=0; i < args.length; ++i) {
@@ -160,6 +156,8 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
     }
 
     public static void main(String[] args) throws Exception {
+        Configuration z = HBaseConfiguration.create();
+        z.get
         int res = ToolRunner.run(HBaseConfiguration.create(), new HbaseTableBulkLoader(), args);
         System.exit(res);
     }
