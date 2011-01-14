@@ -140,9 +140,9 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
 
         // Hbase specific setup
         Configuration conf = job.getConfiguration();
-        //TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job);
+        TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job);
+        //TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job, null, "ip-10-116-67-209.ec2.internal:2181", null, null);
 
-        TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job, null, "10.116.67.209:2181", null, null);
         // Handle input path
         List<String> other_args = new ArrayList<String>();
         for (int i=0; i < args.length; ++i) {
@@ -156,9 +156,10 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
     }
 
     public static void main(String[] args) throws Exception {
-        Configuration z = HBaseConfiguration.create();
-        z.get
-        int res = ToolRunner.run(HBaseConfiguration.create(), new HbaseTableBulkLoader(), args);
+	Configuration config = HBaseConfiguration.create();
+	//config.set("hbase.zookeeper.quorum", "10.116.67.209");
+	//config.set("hbase.zookeeper.property.clientPort", "2181");
+        int res = ToolRunner.run(config, new HbaseTableBulkLoader(), args);
         System.exit(res);
     }
 }
