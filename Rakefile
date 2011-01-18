@@ -9,6 +9,7 @@ Settings.define :src,         :default => "#{WORK_DIR}/src",                :des
 Settings.define :target,      :default => "#{WORK_DIR}/build",              :description => "Build target, this is where compiled classes live"
 Settings.define :main_class,  :default => "HbaseBulkloader",                :description => "Main java class to run"
 Settings.define :hadoop_home, :default => "/usr/lib/hadoop",                :description => "Path to hadoop installation",       :env_var => "HADOOP_HOME"
+Settings.define :pig_home,    :default => "/usr/lib/pig",                   :description => "Path to pig installation",  :env_var => "PIG_HOME"
 Settings.define :hbase_home,  :default => "/usr/lib/hbase",                 :description => "Path to hbase installation",        :env_var => "HBASE_HOME"
 Settings.resolve!
 options = Settings.dup
@@ -16,15 +17,17 @@ options = Settings.dup
 #
 # Returns full classpath
 #
-def classpath options
+def classpath options, delim=":"
   cp = ["."]
   Dir[
     "#{options.hadoop_home}/hadoop*.jar",
     "#{options.hadoop_home}/lib/*.jar",
     "#{options.hbase_home}/hbase*.jar",
     "#{options.hbase_home}/lib/*.jar",
+    "#{options.pig_home}/pig*.jar",
+    "#{options.pig_home}/lib/*.jar",
   ].each{|jar| cp << jar}
-  cp.join(':')
+  cp.join(delim)
 end
 
 def srcs options
@@ -43,6 +46,10 @@ task :compile do
   mkdir_p File.join(options.target, snakeized)
   system "javac -cp #{classpath(options)} -d #{options.target}/#{snakeized} #{srcs(options)}"
   system "jar -cvf  #{options.target}/#{snakeized}.jar -C #{options.target}/#{snakeized} . "
+end
+
+task :dump_classpath do
+  puts classpath(options, ':')
 end
 
 task :default => [:compile]
