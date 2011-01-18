@@ -81,22 +81,26 @@ public class HbaseGraphBulkLoader extends Configured implements Tool {
         public void map(LongWritable key, Text line, Context context) throws IOException {
             String[] fields = line.toString().split("\t");
 
-            byte[] rowkey = Bytes.toBytes( fields[1] );
-            byte[] column = Bytes.toBytes( fields[2] );
-            // Create Put
-            Put put = new Put( rowkey );
-            put.add(family,column,value);
-            put.setWriteToWAL(false);
-            try {
-                context.write(new ImmutableBytesWritable(rowkey), put);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            // ignore rows with less than three fields
+            if(fields.length >= 3) {
+                byte[] rowkey = Bytes.toBytes( fields[1] );
+                byte[] column = Bytes.toBytes( fields[2] );
+                // Create Put
+                Put put = new Put( rowkey );
+                put.add(family,column,value);
+                put.setWriteToWAL(false);
+                try {
+                    context.write(new ImmutableBytesWritable(rowkey), put);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                // Set status every checkpoint lines
+                if(++count % checkpoint == 0) {
+                    context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
+                }
             }
-      
-            // Set status every checkpoint lines
-            if(++count % checkpoint == 0) {
-                context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
-            }
+            
         }
 
 

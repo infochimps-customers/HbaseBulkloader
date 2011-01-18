@@ -93,7 +93,7 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
         public void map(LongWritable key, Text line, Context context) throws IOException {
 
             String[] fields = line.toString().split("\t");
-
+            try {
             byte[] rowkey = Bytes.toBytes( fields[ keyFieldIndex] );
 
             // Create Put
@@ -121,6 +121,9 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
             // Set status every checkpoint lines
             if(++count % checkpoint == 0) {
                 context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
+            }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                // TODO increment a counter or something
             }
         }
 
