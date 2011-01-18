@@ -51,7 +51,7 @@ import org.apache.hadoop.hbase.KeyValue;
  * <p>This code was written against hbase 0.1 branch.
  */
 
-public class HbaseGraphBulkLoader extends Configured implements Tool {
+public class HbaseAdjacencyGraphBulkLoader extends Configured implements Tool {
 
     // configuration parameters
     // hbase.table.name should contain the name of the table
@@ -81,26 +81,25 @@ public class HbaseGraphBulkLoader extends Configured implements Tool {
         public void map(LongWritable key, Text line, Context context) throws IOException {
             String[] fields = line.toString().split("\t");
 
-            // ignore rows with less than three fields
-            if(fields.length >= 3) {
-                byte[] rowkey = Bytes.toBytes( fields[1] );
-                byte[] column = Bytes.toBytes( fields[2] );
-                // Create Put
-                Put put = new Put( rowkey );
+            byte[] rowkey = Bytes.toBytes( fields[0] );
+            byte[] column;
+            // Create Put
+            Put put = new Put( rowkey );
+            for(int i=1; i<fields.length; ++i) {
+                column = Bytes.toBytes( fields[i] );
                 put.add(family,column,value);
-                put.setWriteToWAL(false);
-                try {
-                    context.write(new ImmutableBytesWritable(rowkey), put);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-                // Set status every checkpoint lines
-                if(++count % checkpoint == 0) {
-                    context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
-                }
             }
-            
+            put.setWriteToWAL(false);
+            try {
+                context.write(new ImmutableBytesWritable(rowkey), put);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+      
+            // Set status every checkpoint lines
+            if(++count % checkpoint == 0) {
+                context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
+            }
         }
 
 
