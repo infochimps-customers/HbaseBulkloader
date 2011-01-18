@@ -111,6 +111,8 @@ public class HbaseTableBulkLoader extends Configured implements Tool {
       
             // Uncomment below to disable WAL. This will improve performance but means
             // you will experience data loss in the case of a RegionServer crash.
+	    put.setWriteToWAL(false);
+
       
             try {
                 context.write(new ImmutableBytesWritable(rowkey), put);
