@@ -98,7 +98,13 @@ public class HbaseGraphTableBulkLoader extends Configured implements Tool {
 
             StringBuffer keybuf = new StringBuffer();
             try {
+                // build key out of keyfields separated by ":"
+                // all keyfieds must be non-empty, or we skip the recored
                 for (int i = 0; i < keyFieldIndexes.length; ++i) {
+                    if( fields[keyFieldIndexes[i]].length() == 0) {
+                        // TODO - define a more appropriate exection
+                        throw new IndexOutOfBoundsException();
+                    }
                     if (i > 0) {
                         keybuf.append(":");
                     }
