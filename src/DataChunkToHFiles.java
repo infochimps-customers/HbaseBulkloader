@@ -79,36 +79,29 @@ public class DataChunkToHFiles extends Configured implements Tool {
         Job job  = new Job(getConf());
         
         job.setJarByClass(DataChunkToHFiles.class);
-        job.setJobName("    @('_')@   data data data");
+        job.setJobName("HFilesWriter, This should really be a Pig StoreFunc");
 
         job.setMapOutputKeyClass(ImmutableBytesWritable.class);
         job.setMapOutputValueClass(KeyValue.class);
         
         job.setMapperClass(TextToKeyValues.class);
         job.setReducerClass(KeyValueSortReducer.class);
-        job.setNumReduceTasks(1);
         job.setOutputFormatClass(HFileOutputFormat.class);
                 
-        // byte[] startKey = new byte[RandomKVGeneratingMapper.KEYLEN_DEFAULT];
-        // byte[] endKey   = new byte[RandomKVGeneratingMapper.KEYLEN_DEFAULT];
-        byte[] startKey = Bytes.toBytes("0");
-        byte[] endKey   = Bytes.toBytes("2147483647");
+        byte[] startKey = new byte[256];
+        byte[] endKey   = new byte[256];
     
         Arrays.fill(startKey, (byte)0);
         Arrays.fill(endKey, (byte)0xff);
-    
+
+        // We will almost certainly want to use a different partitioner
         job.setPartitionerClass(SimpleTotalOrderPartitioner.class);
+        //
 
         Configuration conf = job.getConfiguration();
         SimpleTotalOrderPartitioner.setStartKey(conf, startKey);
         SimpleTotalOrderPartitioner.setEndKey(conf, endKey);
 
-        //
-
-        // to play with
-        //conf.setLong("hbase.hregion.max.filesize", 64 * 1024);
-        //
-        
         // Handle input path
         List<String> other_args = new ArrayList<String>();
         for (int i=0; i < args.length; ++i) {

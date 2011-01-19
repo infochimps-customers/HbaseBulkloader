@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Iterator;
 import java.util.TreeSet;
 
 import org.apache.commons.cli.CommandLine;
@@ -135,65 +136,84 @@ public class HFileStorage extends StoreFunc {
     }
 
     //
-    // putNext()
+    // Here we are going to get the following:
     //
-    // The meaning of putNext() has not changed and is called by Pig runtime to
-    // write the next tuple of data - in the new API, this is the method wherein
-    // the implementation will use the the underlying RecordWriter to write the
-    // Tuple out.
+    // (row_key, {(field1),(field2),...})
+    //
+    // we must iterate through the tuples in the
+    // bag and insert them into a TreeSet for
+    // sorting. Then we need to iterate through
+    // the sorted set and serialize each column
+    // 
+    //
     @SuppressWarnings("unchecked")
     public void putNext(Tuple t) throws IOException {
-        byte[] rowKey = Bytes.toBytes(t.get(0).toString()); // use zeroth field as row key
-        for (int i = 1; i < t.size(); ++i){
-            try {
-                byte[] columnName  = Bytes.toBytes(columnNames[i-1]);
-                Object columnValue = t.get(i);
-                try {
-                    putKeyValue(rowKey, columnFamily, columnName, columnValue);
-                } catch (InterruptedException e) {
-                    throw new IOException(e);
-                }
-            } catch (NullPointerException e) {
-                System.out.println("@('_')@ Null pointer exception.");
+        try {
+            byte[] rowKey         = Bytes.toBytes(t.get(0).toString()); // use zeroth field as row key
+            DataBag columns       = (DataBag)t.get(1);
+            ImmutableBytesWritable hbaseRowKey = new ImmutableBytesWritable(rowKey);
+            TreeSet<KeyValue> map = sortedKeyValues(rowKey, columns);
+            for (KeyValue kv: map) {
+                writer.write(hbaseRowKey, kv);
             }
+        } catch (InterruptedException e) {
+            throw new IOException("Interrupted");
+        } catch (NullPointerException e) {
+            System.out.println("@('_')@ Null pointer exception.");
         }
     }
 
-    private void putKeyValue(byte[] rK, byte[] cF, byte[] cN, Object cV) throws IOException, InterruptedException {
+    private TreeSet<KeyValue> sortedKeyValues(byte[] rowKey, DataBag columns) throws IOException {
+        TreeSet<KeyValue> map              = new TreeSet<KeyValue>(KeyValue.COMPARATOR);
         long ts                            = System.currentTimeMillis();
-        ImmutableBytesWritable hbaseRowKey = new ImmutableBytesWritable(rK);
-        switch (DataType.findType(cV)) {
-        case DataType.NULL:
-            break; // just leave it empty
-        case DataType.INTEGER: {
-            byte[] value = ((Integer)cV).toString().getBytes();
-            writer.write(hbaseRowKey, new KeyValue(rK, cF, cN, ts, value));
-            break;
+        int idx                            = 0;
+        Iterator<Tuple> tupleIter = columns.iterator();
+        while(tupleIter.hasNext()) {
+            byte[] columnName = Bytes.toBytes(columnNames[idx]);
+            byte[] value      = Bytes.toBytes(tupleIter.next().get(0).toString());
+            KeyValue kv       = new KeyValue(rowKey, columnFamily, columnName, ts, value);
+            map.add(kv);
+            idx += 1;
         }
-        case DataType.LONG: {
-            byte[] value = ((Long)cV).toString().getBytes();
-            writer.write(hbaseRowKey, new KeyValue(rK, cF, cN, ts, value));
-            break;
-        }
-
-        case DataType.FLOAT: {
-            byte[] value = ((Float)cV).toString().getBytes();
-            writer.write(hbaseRowKey, new KeyValue(rK, cF, cN, ts, value));
-            break;
-        }
-
-        case DataType.DOUBLE: {
-            byte[] value = ((Double)cV).toString().getBytes();
-            writer.write(hbaseRowKey, new KeyValue(rK, cF, cN, ts, value));
-            break;
-        }
-
-        case DataType.CHARARRAY: {
-            byte[] value = ((String)cV).getBytes("UTF-8");
-            writer.write(hbaseRowKey, new KeyValue(rK, cF, cN, ts, value));
-            break;
-        }
-            
-        }// endswitch
+        return map;
     }
-    }
+
+    // private byte[] getValue(Object field) throws IOException {
+    //     byte[] value = null; 
+    //     switch (DataType.findType(field)) {
+    //     case DataType.INTEGER: {
+    //         value = ((Integer)field).toString().getBytes();
+    //         break;
+    //     }
+    //     case DataType.LONG: {
+    //         value = ((Long)field).toString().getBytes();
+    //         break;
+    //     }
+    // 
+    //     case DataType.FLOAT: {
+    //         value = ((Float)field).toString().getBytes();
+    //         break;
+    //     }
+    // 
+    //     case DataType.DOUBLE: {
+    //         value = ((Double)field).toString().getBytes();
+    //         break;
+    //     }
+    // 
+    //     case DataType.CHARARRAY: {
+    //         value = ((String)field).getBytes("UTF-8");
+    //         break;
+    //     }
+    // 
+    //     case DataType.BYTEARRAY: {
+    //         value = ((DataByteArray)field).get();
+    //         break;
+    //     }
+    // 
+    //     default: {
+    //         throw new IllegalArgumentException("You fail:" + DataType.findType(field));
+    //     }
+    //     }
+    //     return value;
+    // }
+}
