@@ -59,6 +59,7 @@ public class DataChunkToHFiles extends Configured implements Tool {
 
         protected void map(LongWritable key, Text line, Context context) throws IOException ,InterruptedException {
             String[] fields = line.toString().split("\t");
+
             byte[] rowKey   = Bytes.toBytes(fields[keyField]);
 
             // Create output for Hbase reducer
@@ -90,28 +91,9 @@ public class DataChunkToHFiles extends Configured implements Tool {
         job.setReducerClass(KeyValueSortReducer.class);
         job.setOutputFormatClass(HFileOutputFormat.class);
                 
-        byte[] startKey = new byte[10];
-        byte[] endKey   = new byte[10];
-
-        Arrays.fill(startKey, (byte)0);   // x xxx xxx xx0
-        Arrays.fill(endKey, (byte)0xff);  // 9 999 999 999
-        LOG.info(Bytes.toString(startKey));
-
-        startKey[0] = (byte)'0';
-        endKey[0]   = (byte)'9';
-        LOG.info(Bytes.toString(endKey));
-
         // We will almost certainly want to use a different partitioner
-        //job.setPartitionerClass(SimpleTotalOrderPartitioner.class);
-        job.setPartitionerClass(MyTotalOrderPartitioner.class);
+        job.setPartitionerClass(BenfordAndSonPartitioner.class);
         //
-
-        Configuration conf = job.getConfiguration();
-        MyTotalOrderPartitioner.setStartKey(conf, startKey);
-        MyTotalOrderPartitioner.setEndKey(conf, endKey);
-        //SimpleTotalOrderPartitioner.setStartKey(conf, startKey);
-        //SimpleTotalOrderPartitioner.setEndKey(conf, endKey);
-
         // Handle input path
         List<String> other_args = new ArrayList<String>();
         for (int i=0; i < args.length; ++i) {
