@@ -103,7 +103,7 @@ public class HbaseGraphTableBulkLoader extends Configured implements Tool {
                 for (int i = 0; i < keyFieldIndexes.length; ++i) {
                     if( fields[keyFieldIndexes[i]].length() == 0) {
                         // TODO - define a more appropriate exection
-                        throw new IndexOutOfBoundsException();
+                        throw new ArrayIndexOutOfBoundsException();
                     }
                     if (i > 0) {
                         keybuf.append(":");
@@ -144,7 +144,6 @@ public class HbaseGraphTableBulkLoader extends Configured implements Tool {
             } catch (ArrayIndexOutOfBoundsException e) {
                 // TODO: increment a counter or something
             }
-
         }
     }
         
