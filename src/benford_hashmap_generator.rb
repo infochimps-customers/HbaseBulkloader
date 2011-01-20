@@ -37,6 +37,7 @@ require 'configliere'; Settings.use :commandline
 #
 
 Settings.define :prefix_chars, :default =>   4, :type => Integer, :description => "How many characters you'll snip from each string. The hashmap will be about 10**prefix_chars in size (So with prefix_chars=4, have about 10,000 rows)"
+Settings.define :sampled_distribution, :default => nil, :description => "If left empty, gives a theoretical Benford's law distribution. If a filename is specified, it is loaded as a TSV mapping numeric strings to counts, and that distribution is used to generate the hashmap"
 Settings.resolve!
 THIS_DIR = File.dirname(__FILE__)
 GENERATED_JAVA_FILE = File.join(THIS_DIR, "BenfordAndSon.java")
@@ -51,7 +52,8 @@ prefixes = (10**(Settings.prefix_chars-1) .. (10**Settings.prefix_chars - 1))
 
 # ===========================================================================
 #
-# Calculate the distribution of prefixes
+# Calculate the distribution of prefixes from the theoretical Benford's law
+# distribution.
 #
 
 def prefixes_to_benfords_law_distribution prefixes
@@ -65,6 +67,28 @@ def prefixes_to_benfords_law_distribution prefixes
     benford_map[prefix] = tot_prob
   end
   benford_map
+end
+
+# ===========================================================================
+#
+# Calculate the distribution of prefixes from an actual sampled distribution
+#
+
+def cdf_from_sampled
+  cdf = Hash.new{|h,k| h[k] = 0 }
+  tot_count = 0
+  File.open(Settings.sampled_distribution) do |sampled_distribution_file|
+    sampled_distribution_file.each do |line|
+      str, count = line.chomp.split("\t")
+      prefix = str[0 .. (Settings.prefix_chars-1)]
+      cdf[prefix] += count.to_f
+      tot_count   += count.to_f
+    end
+  end
+end
+
+def prefixes_to_sampled_distribution prefixes
+
 end
 
 # ===========================================================================
@@ -90,7 +114,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 
 class BenfordAndSon {
-  public final static Map distribution = new HashMap<byte[], float>() {
+  public final static Map distribution = new HashMap<byte[], Float>() {
     {
 %s
     }
@@ -101,7 +125,7 @@ class BenfordAndSon {
 # ---------------------------------------------------------------------------
 
 def java_hashmap_entry key, val
-  %Q{      put(new Bytes.toBytes("#{key}"), #{val});}
+  %Q{      put(Bytes.toBytes("#{key}"), #{"%9.7f"%val});}
 end
 
 $stderr.puts "Created hash map from #{prefixes.to_a.length} prefixes (all numeric strings of length #{Settings.prefix_chars}) and storing it in #{GENERATED_JAVA_FILE}"
