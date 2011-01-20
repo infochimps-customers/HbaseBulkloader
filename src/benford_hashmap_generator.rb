@@ -44,20 +44,9 @@ GENERATED_JAVA_FILE = File.join(THIS_DIR, "BenfordAndSon.java")
 
 # ===========================================================================
 #
-# Assemble a sorted list of prefixes
+# Assemble a sorted list of prefixes, from 1000 to 9999 (in the case of
+# prefix_chars == 4), or analogously
 #
-
-PREFIX_CHARS = ["", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-
-def expand_prefixes prefixes
-  PREFIX_CHARS.map{|char| prefixes.map{|prefix| prefix + char }}.flatten.uniq
-end
-
-prefixes = [""]
-Settings.prefix_chars.times do
-  prefixes = expand_prefixes(prefixes)
-end
-prefixes.sort!
 
 prefixes = (10**(Settings.prefix_chars-1) .. (10**Settings.prefix_chars - 1))
 
@@ -70,6 +59,7 @@ def prefixes_to_benfords_law_segments prefixes
   benford_map = {}
   tot_prob = 0
   prefixes.each do |prefix|
+    next if prefix == 0
     prob = Math.log10( 1 + (1.0 / prefix.to_f) )
     tot_prob += prob
     segment = (Settings.segments * tot_prob).to_i
