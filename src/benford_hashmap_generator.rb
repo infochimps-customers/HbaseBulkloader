@@ -106,8 +106,16 @@ class BenfordDistributionGenerator
     cdf
   end
 
+  def distribution_from_sampled_file!
+    @distribution = cdf_from_sampled_distribution
+  end
+
   def get_distribution
-    distribution_from_benfords_law!
+    if Settings.sampled_distribution.blank?
+      distribution_from_benfords_law!
+    else
+      distribution_from_sampled_file!
+    end
     @distribution
   end
 end
@@ -136,7 +144,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 
 class BenfordAndSon {
-  public final static Map distribution = new HashMap<byte[], Float>() {
+  public final static Map distribution = new HashMap<String, Float>() {
     {
 %s
     }
@@ -147,7 +155,7 @@ class BenfordAndSon {
 # ---------------------------------------------------------------------------
 
 def java_hashmap_entry key, val
-  %Q{      put(Bytes.toBytes("#{key}"), #{"%9.7ff"%val});}
+  %Q{      put("#{key}", #{"%9.7ff"%val});}
 end
 
 dist = BenfordDistributionGenerator.new
