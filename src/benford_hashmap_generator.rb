@@ -37,10 +37,11 @@ require 'configliere'; Settings.use :commandline
 #
 
 Settings.define :prefix_chars, :default =>   4, :type => Integer, :description => "How many characters you'll snip from each string. The hashmap will be about 10**prefix_chars in size (So with prefix_chars=4, have about 10,000 rows)"
-Settings.define :sampled_distribution, :default => nil, :description => "If left empty, gives a theoretical Benford's law distribution. If a filename is specified, it is loaded as a TSV mapping numeric strings to counts, and that distribution is used to generate the hashmap"
+Settings.define :sampled_distribution, :default => nil,           :description => "If left empty, gives a theoretical Benford's law distribution. If a filename is specified, it is loaded as a TSV mapping numeric strings to counts, and that distribution is used to generate the hashmap"
+Settings.define :output_classname,     :default => "BenfordAndSon", :description => "Name of the java class (put in an eponymous file) to generate"
 Settings.resolve!
 THIS_DIR = File.dirname(__FILE__)
-GENERATED_JAVA_FILE = File.join(THIS_DIR, "BenfordAndSon.java")
+GENERATED_JAVA_FILE = File.join(THIS_DIR, Settings.output_classname+'.java')
 
 
 class BenfordDistributionGenerator
@@ -86,7 +87,8 @@ class BenfordDistributionGenerator
     tot_count     = 0
     sampled_distribution_file.each do |line|
       str, count = line.chomp.split("\t")
-      prefix = str[0 .. (Settings.prefix_chars-1)]
+      prefix = str[0 .. (Settings.prefix_chars-1)].to_i
+      prefix = prefixes.first if (prefix < prefixes.first) # short portion strings
       prefix_counts[prefix] += count.to_f
       tot_count             += count.to_f
     end
@@ -98,10 +100,10 @@ class BenfordDistributionGenerator
     pdf = {}
     cdf = {}
     running_total = 0
-    prefix_counts.each do |prefix, count|
-      pdf[prefix]    = (count / tot_count)
-      running_total += pdf[prefix]
+    prefixes.each do |prefix|
+      pdf[prefix]    = (prefix_counts[prefix] / tot_count)
       cdf[prefix]    = running_total
+      running_total += pdf[prefix]
     end
     cdf
   end
@@ -143,7 +145,7 @@ import java.util.HashMap;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 
-class BenfordAndSon {
+class %s {
   public final static Map distribution = new HashMap<String, Float>() {
     {
 %s
@@ -162,8 +164,5 @@ dist = BenfordDistributionGenerator.new
 $stderr.puts "Created hash map from #{dist.prefixes.to_a.length} prefixes (all numeric strings of length #{Settings.prefix_chars}) and storing it in #{GENERATED_JAVA_FILE}"
 File.open(GENERATED_JAVA_FILE, "w") do |generated_java_file|
   hashmap_entries = dist.get_distribution.map{|prefix, bin| java_hashmap_entry(prefix, bin) }.join("\n")
-  generated_java_file.puts( HASHMAP_TEMPLATE % hashmap_entries )
+  generated_java_file.puts( HASHMAP_TEMPLATE % [Settings.output_classname, hashmap_entries] )
 end
-
-# p BenfordDistributionGenerator.new.cdf_from_sampled_distribution
-
