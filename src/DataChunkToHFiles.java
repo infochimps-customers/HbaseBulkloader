@@ -37,8 +37,10 @@ import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.util.ToolRunner;
 
+
 public class DataChunkToHFiles extends Configured implements Tool {
-    
+
+    private final static Log LOG = LogFactory.getLog(DataChunkToHFiles.class);
     public static class TextToKeyValues extends Mapper<LongWritable, Text, ImmutableBytesWritable, KeyValue> {
         private byte[] columnFamily;
         private byte[] tableName;
@@ -88,19 +90,27 @@ public class DataChunkToHFiles extends Configured implements Tool {
         job.setReducerClass(KeyValueSortReducer.class);
         job.setOutputFormatClass(HFileOutputFormat.class);
                 
-        byte[] startKey = new byte[256];
-        byte[] endKey   = new byte[256];
-    
-        Arrays.fill(startKey, (byte)0);
-        Arrays.fill(endKey, (byte)0xff);
+        byte[] startKey = new byte[10];
+        byte[] endKey   = new byte[10];
+
+        Arrays.fill(startKey, (byte)0);   // x xxx xxx xx0
+        Arrays.fill(endKey, (byte)0xff);  // 9 999 999 999
+        LOG.info(Bytes.toString(startKey));
+
+        startKey[0] = (byte)'0';
+        endKey[0]   = (byte)'9';
+        LOG.info(Bytes.toString(endKey));
 
         // We will almost certainly want to use a different partitioner
-        job.setPartitionerClass(SimpleTotalOrderPartitioner.class);
+        //job.setPartitionerClass(SimpleTotalOrderPartitioner.class);
+        job.setPartitionerClass(MyTotalOrderPartitioner.class);
         //
 
         Configuration conf = job.getConfiguration();
-        SimpleTotalOrderPartitioner.setStartKey(conf, startKey);
-        SimpleTotalOrderPartitioner.setEndKey(conf, endKey);
+        MyTotalOrderPartitioner.setStartKey(conf, startKey);
+        MyTotalOrderPartitioner.setEndKey(conf, endKey);
+        //SimpleTotalOrderPartitioner.setStartKey(conf, startKey);
+        //SimpleTotalOrderPartitioner.setEndKey(conf, endKey);
 
         // Handle input path
         List<String> other_args = new ArrayList<String>();

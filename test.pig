@@ -36,11 +36,17 @@ register 'build/hbase_bulkloader.jar';
 -- Everything else the same as ideal scenario. Notice that real scenario requires
 -- one more reduce
 --
-twuid      = LOAD '/tmp/streamed/twitter_user_id/part-00000' AS (rsrc:chararray,uid:chararray,scrat:chararray,sn:chararray,prot:chararray,foll:chararray,friend:chararray,status:chararray,favo:chararray,crat:chararray,sid:chararray,is_full:chararray,health:chararray);
-cut_fields = FOREACH twuid GENERATE uid, scrat, sn, prot,foll,friend,status,favo,crat,sid,is_full,health;
-grpd       = GROUP cut_fields BY uid PARALLEL 1;
+-- twuid      = LOAD '/tmp/streamed/twitter_user_id/part-00000' AS (rsrc:chararray,uid:chararray,scrat:chararray,sn:chararray,prot:chararray,foll:chararray,friend:chararray,status:chararray,favo:chararray,crat:chararray,sid:chararray,is_full:chararray,health:chararray);
+-- -- cut_fields = FOREACH twuid GENERATE uid, scrat, sn, prot,foll,friend,status,favo,crat,sid,is_full,health;
+-- cut_fields = FOREACH twuid GENERATE uid, sn;
+-- grpd       = GROUP cut_fields BY uid PARALLEL 1;
+-- ordrd      = ORDER grpd BY * ASC;
+-- -- 
+-- -- DESCRIBE grpd;
+-- rmf /tmp/pig_test/out
+-- -- STORE grpd INTO '/tmp/pig_test/out' USING org.apache.hadoop.hbase.mapreduce.HFileStorage('Jacob', 'pig_test', 'user_id,screen_name,protected,followers_count,friends_count,statuses_count,favorites_count,created_at,search_id,is_full,health');
+-- STORE ordrd INTO '/tmp/pig_test/out' USING org.apache.hadoop.hbase.mapreduce.HFileStorage('Jacob', 'pig_test', 'user_id,screen_name');
 
-DESCRIBE grpd;
-rmf /tmp/pig_test/out
-STORE grpd INTO '/tmp/pig_test/out';        
--- STORE grpd INTO '/tmp/pig_test/out' USING org.apache.hadoop.hbase.mapreduce.HFileStorage('Jacob', 'pig_test', 'screen_name,protected,followers_count,friends_count,statuses_count,favorites_count,created_at,search_id,is_full,health');
+twuid      = LOAD '/tmp/streamed/twitter_user_id/part-00000' AS (rsrc:chararray,uid:chararray,scrat:chararray,sn:chararray,prot:chararray,foll:chararray,friend:chararray,status:chararray,favo:chararray,crat:chararray,sid:chararray,is_full:chararray,health:chararray);
+cut_fields = FOREACH twuid GENERATE uid, sn;
+STORE twuid INTO 'Jacob' USING org.apache.pig.backend.hadoop.hbase.HBaseStorage('my_col_fam:screen_name');

@@ -150,6 +150,7 @@ public class HFileStorage extends StoreFunc {
     public void putNext(Tuple t) throws IOException {
         try {
             byte[] rowKey         = Bytes.toBytes(t.get(0).toString()); // use zeroth field as row key
+            //byte[] rowKey         = ((DataByteArray)t.get(0)).get();
             DataBag columns       = (DataBag)t.get(1);
             ImmutableBytesWritable hbaseRowKey = new ImmutableBytesWritable(rowKey);
             TreeSet<KeyValue> map = sortedKeyValues(rowKey, columns);
@@ -170,9 +171,11 @@ public class HFileStorage extends StoreFunc {
         Iterator<Tuple> tupleIter = columns.iterator();
         while(tupleIter.hasNext()) {
             byte[] columnName = Bytes.toBytes(columnNames[idx]);
-            byte[] value      = Bytes.toBytes(tupleIter.next().get(0).toString());
-            KeyValue kv       = new KeyValue(rowKey, columnFamily, columnName, ts, value);
-            map.add(kv);
+            byte[] value      = Bytes.toBytes((String)tupleIter.next().get(0));                
+            if (idx != 0) {
+                KeyValue kv = new KeyValue(rowKey, columnFamily, columnName, ts, value);
+                map.add(kv.clone());
+            }
             idx += 1;
         }
         return map;
