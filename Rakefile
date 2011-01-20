@@ -44,7 +44,7 @@ task :compile do
   puts "Compiling #{options.src} ..."
   snakeized = options.main_class.underscore
   mkdir_p File.join(options.target, snakeized)
-  system "javac -cp #{classpath(options)} -d #{options.target}/#{snakeized} #{srcs(options)}"
+  system "$JAVA_HOME/../bin/javac -cp #{classpath(options)} -d #{options.target}/#{snakeized} #{srcs(options)}"
   system "jar -cvf  #{options.target}/#{snakeized}.jar -C #{options.target}/#{snakeized} . "
 end
 
