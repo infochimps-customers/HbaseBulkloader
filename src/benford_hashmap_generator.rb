@@ -93,8 +93,16 @@ HASHMAP_TEMPLATE = %Q{
  *
  */
 
+package org.apache.hadoop.hbase.mapreduce;
+
+import java.util.Map;
+import java.util.HashMap;
+
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+
 class BenfordAndSon {
-  public final static Map segments = new HashMap<ImmutableBytesWritable, Integer>() {
+  public final static Map segments = new HashMap<byte[], Integer>() {
     {
 %s
     }
@@ -105,7 +113,7 @@ class BenfordAndSon {
 # ---------------------------------------------------------------------------
 
 def java_hashmap_entry key, val
-  %Q{      put(new ImmutableBytesWritable(Bytes.toBytes("#{key}")), #{val.to_i});}
+  %Q{      put(new Bytes.toBytes("#{key}"), #{val.to_i});}
 end
 
 $stderr.puts "Created hash map from #{prefixes.to_a.length} prefixes (all numeric strings of length #{Settings.prefix_chars} or less) to #{Settings.segments} segments; storing in #{GENERATED_JAVA_FILE}"
