@@ -37,8 +37,10 @@ import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.util.ToolRunner;
 
+
 public class DataChunkToHFiles extends Configured implements Tool {
-    
+
+    private final static Log LOG = LogFactory.getLog(DataChunkToHFiles.class);
     public static class TextToKeyValues extends Mapper<LongWritable, Text, ImmutableBytesWritable, KeyValue> {
         private byte[] columnFamily;
         private byte[] tableName;
@@ -57,6 +59,7 @@ public class DataChunkToHFiles extends Configured implements Tool {
 
         protected void map(LongWritable key, Text line, Context context) throws IOException ,InterruptedException {
             String[] fields = line.toString().split("\t");
+
             byte[] rowKey   = Bytes.toBytes(fields[keyField]);
 
             // Create output for Hbase reducer
@@ -79,36 +82,18 @@ public class DataChunkToHFiles extends Configured implements Tool {
         Job job  = new Job(getConf());
         
         job.setJarByClass(DataChunkToHFiles.class);
-        job.setJobName("    @('_')@   data data data");
+        job.setJobName("HFilesWriter, This should really be a Pig StoreFunc");
 
         job.setMapOutputKeyClass(ImmutableBytesWritable.class);
         job.setMapOutputValueClass(KeyValue.class);
         
         job.setMapperClass(TextToKeyValues.class);
         job.setReducerClass(KeyValueSortReducer.class);
-        job.setNumReduceTasks(1);
         job.setOutputFormatClass(HFileOutputFormat.class);
                 
-        // byte[] startKey = new byte[RandomKVGeneratingMapper.KEYLEN_DEFAULT];
-        // byte[] endKey   = new byte[RandomKVGeneratingMapper.KEYLEN_DEFAULT];
-        byte[] startKey = Bytes.toBytes("0");
-        byte[] endKey   = Bytes.toBytes("2147483647");
-    
-        Arrays.fill(startKey, (byte)0);
-        Arrays.fill(endKey, (byte)0xff);
-    
-        job.setPartitionerClass(SimpleTotalOrderPartitioner.class);
-
-        Configuration conf = job.getConfiguration();
-        SimpleTotalOrderPartitioner.setStartKey(conf, startKey);
-        SimpleTotalOrderPartitioner.setEndKey(conf, endKey);
-
+        // We will almost certainly want to use a different partitioner
+        job.setPartitionerClass(BenfordAndSonPartitioner.class);
         //
-
-        // to play with
-        //conf.setLong("hbase.hregion.max.filesize", 64 * 1024);
-        //
-        
         // Handle input path
         List<String> other_args = new ArrayList<String>();
         for (int i=0; i < args.length; ++i) {
