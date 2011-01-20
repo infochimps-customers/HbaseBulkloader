@@ -42,54 +42,76 @@ Settings.resolve!
 THIS_DIR = File.dirname(__FILE__)
 GENERATED_JAVA_FILE = File.join(THIS_DIR, "BenfordAndSon.java")
 
-# ===========================================================================
-#
-# Assemble a sorted list of prefixes, from 1000 to 9999 (in the case of
-# prefix_chars == 4), or analogously
-#
 
-prefixes = (10**(Settings.prefix_chars-1) .. (10**Settings.prefix_chars - 1))
+class BenfordDistributionGenerator
 
-# ===========================================================================
-#
-# Calculate the distribution of prefixes from the theoretical Benford's law
-# distribution.
-#
-
-def prefixes_to_benfords_law_distribution prefixes
-  benford_map = {}
-  tot_prob = 0
-  prefixes.each do |prefix|
-    next if prefix == 0
-    prob = Math.log10( 1 + (1.0 / prefix.to_f) )
-    tot_prob += prob
-    # p [prefix, prob, tot_prob]
-    benford_map[prefix] = tot_prob
+  # ===========================================================================
+  #
+  # Assemble a sorted list of prefixes, from 1000 to 9999 (in the case of
+  # prefix_chars == 4), or analogously
+  #
+  def prefixes
+    @prefixes ||= (10**(Settings.prefix_chars-1) .. (10**Settings.prefix_chars - 1))
   end
-  benford_map
-end
 
-# ===========================================================================
-#
-# Calculate the distribution of prefixes from an actual sampled distribution
-#
+  # ===========================================================================
+  #
+  # Calculate the distribution of prefixes from the theoretical Benford's law
+  # distribution.
+  #
+  def distribution_from_benfords_law!
+    @distribution = {}
+    tot_prob = 0
+    prefixes.each do |prefix|
+      next if prefix == 0
+      @distribution[prefix] = tot_prob
+      prob = Math.log10( 1 + (1.0 / prefix.to_f) )
+      tot_prob += prob
+      # p [prefix, prob, tot_prob]
+    end
+    @distribution
+  end
 
-def cdf_from_sampled
-  cdf = Hash.new{|h,k| h[k] = 0 }
-  tot_count = 0
-  File.open(Settings.sampled_distribution) do |sampled_distribution_file|
+  # ===========================================================================
+  #
+  # Calculate the distribution of prefixes from an actual sampled distribution
+  #
+
+  def sampled_distribution_file
+    @sampled_distribution_file ||= File.open(Settings.sampled_distribution)
+  end
+
+  def counts_from_sampled
+    prefix_counts = Hash.new{|h,k| h[k] = 0 }
+    tot_count     = 0
     sampled_distribution_file.each do |line|
       str, count = line.chomp.split("\t")
       prefix = str[0 .. (Settings.prefix_chars-1)]
-      cdf[prefix] += count.to_f
-      tot_count   += count.to_f
+      prefix_counts[prefix] += count.to_f
+      tot_count             += count.to_f
     end
+    [prefix_counts, tot_count]
+  end
+
+  def cdf_from_sampled_distribution
+    prefix_counts, tot_count = counts_from_sampled
+    pdf = {}
+    cdf = {}
+    running_total = 0
+    prefix_counts.each do |prefix, count|
+      pdf[prefix]    = (count / tot_count)
+      running_total += pdf[prefix]
+      cdf[prefix]    = running_total
+    end
+    cdf
+  end
+
+  def get_distribution
+    distribution_from_benfords_law!
+    @distribution
   end
 end
 
-def prefixes_to_sampled_distribution prefixes
-
-end
 
 # ===========================================================================
 #
@@ -125,14 +147,15 @@ class BenfordAndSon {
 # ---------------------------------------------------------------------------
 
 def java_hashmap_entry key, val
-  %Q{      put(Bytes.toBytes("#{key}"), #{"%9.7f"%val});}
+  %Q{      put(Bytes.toBytes("#{key}"), #{"%9.7ff"%val});}
 end
 
-$stderr.puts "Created hash map from #{prefixes.to_a.length} prefixes (all numeric strings of length #{Settings.prefix_chars}) and storing it in #{GENERATED_JAVA_FILE}"
+dist = BenfordDistributionGenerator.new
+$stderr.puts "Created hash map from #{dist.prefixes.to_a.length} prefixes (all numeric strings of length #{Settings.prefix_chars}) and storing it in #{GENERATED_JAVA_FILE}"
 File.open(GENERATED_JAVA_FILE, "w") do |generated_java_file|
-  prefix_distribution = prefixes_to_benfords_law_distribution(prefixes)
-  hashmap_entries = prefix_distribution.map{|prefix, bin| java_hashmap_entry(prefix, bin) }.join("\n")
+  hashmap_entries = dist.get_distribution.map{|prefix, bin| java_hashmap_entry(prefix, bin) }.join("\n")
   generated_java_file.puts( HASHMAP_TEMPLATE % hashmap_entries )
 end
 
+# p BenfordDistributionGenerator.new.cdf_from_sampled_distribution
 
