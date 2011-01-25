@@ -81,6 +81,7 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
     private final static CommandLineParser parser_ = new GnuParser();
     private boolean loadRowKey_;
     private final long limit_;
+    private final int tsField_;
     private final int caching_;
 
     protected transient byte[] gt_;
@@ -101,6 +102,7 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
         validOptions_.addOption("lte", true, "Records must be less than or equal to this value");
         validOptions_.addOption("caching", true, "Number of rows scanners should cache");
         validOptions_.addOption("limit", true, "Per-region limit");
+        validOptions_.addOption("timestamp_field", true, "Zero based index of the field to use as the timestamp");
         validOptions_.addOption("caster", true, "Caster to use for converting values. A class name, " +
                 "HBaseBinaryConverter, or Utf8StorageConverter. For storage, casters must implement LoadStoreCaster.");
     }
@@ -128,6 +130,7 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
      * <li>-gte=minKeyVal
      * <li>-lte=maxKeyVal
      * <li>-caching=numRows  number of rows to cache (faster scans, more memory).
+     * <li>-caster Caster to use for converting values. A class name, HBaseBinaryConverter, or Utf8StorageConverter. For storage, casters must implement LoadStoreCaster.
      * </ul>
      * @throws ParseException 
      * @throws IOException 
@@ -140,7 +143,7 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
             configuredOptions_ = parser_.parse(validOptions_, optsArr);
         } catch (ParseException e) {
             HelpFormatter formatter = new HelpFormatter();
-            formatter.printHelp( "[-loadKey] [-gt] [-gte] [-lt] [-lte] [-caching] [-caster]", validOptions_ );
+            formatter.printHelp( "[-loadKey] [-gt] [-gte] [-lt] [-lte] [-caching] [-caster] [-timestamp_field]", validOptions_ );
             throw e;
         }
 
@@ -177,7 +180,8 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
         }
 
         caching_ = Integer.valueOf(configuredOptions_.getOptionValue("caching", "100"));
-        limit_ = Long.valueOf(configuredOptions_.getOptionValue("limit", "-1"));
+        limit_   = Long.valueOf(configuredOptions_.getOptionValue("limit", "-1"));
+        tsField_ = Integer.valueOf(configuredOptions_.getOptionValue("timestamp_field", "-1"));
         initScan();	    
     }
 
@@ -338,7 +342,10 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
         ResourceFieldSchema[] fieldSchemas = (schema_ == null) ? null : schema_.getFields();
         Put put=new Put(objToBytes(t.get(0), 
                 (fieldSchemas == null) ? DataType.findType(t.get(0)) : fieldSchemas[0].getType()));
-        long ts=System.currentTimeMillis();
+        long ts = System.currentTimeMillis();
+        if (tsField_!=-1) {
+            ts = Long.valueOf(t.get(tsField_).toString());
+        }
 
         for (int i=1;i<t.size();++i){
             byte[] colVal = objToBytes(t.get(i), (fieldSchemas == null) ? DataType.findType(t.get(i)) : fieldSchemas[i].getType());
