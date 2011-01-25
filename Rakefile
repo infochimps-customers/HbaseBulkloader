@@ -1,15 +1,14 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
-require 'wukong'
 require 'configliere' ; Configliere.use(:commandline, :env_var, :define)
 
 WORK_DIR=File.expand_path(File.dirname(__FILE__))
 Settings.define :src,         :default => "#{WORK_DIR}/src",                :description => "Java source dir"
 Settings.define :target,      :default => "#{WORK_DIR}/build",              :description => "Build target, this is where compiled classes live"
-Settings.define :main_class,  :default => "HbaseBulkloader",                :description => "Main java class to run"
+Settings.define :jar_name,    :default => "hbase_bulkloader",               :description => "Name of output jar"
 Settings.define :hadoop_home, :default => "/usr/lib/hadoop",                :description => "Path to hadoop installation",       :env_var => "HADOOP_HOME"
-Settings.define :pig_home,    :default => "/usr/local/share/pig",           :description => "Path to pig installation",  :env_var => "PIG_HOME"
+Settings.define :pig_home,    :default => "/usr/local/share/pig",           :description => "Path to pig installation",          :env_var => "PIG_HOME"
 Settings.define :hbase_home,  :default => "/usr/lib/hbase",                 :description => "Path to hbase installation",        :env_var => "HBASE_HOME"
 Settings.resolve!
 options = Settings.dup
@@ -38,19 +37,15 @@ def srcs options
   sources.join(' ')
 end
 
-#
-# FIXME: Needs to be idempotent ...
-#
-task :compile do
-  puts "Compiling #{options.src} ..."
-  snakeized = options.main_class.underscore
-  mkdir_p File.join(options.target, snakeized)
-  system "$JAVA_HOME/../bin/javac -cp #{classpath(options)} -d #{options.target}/#{snakeized} #{srcs(options)}"
-  system "jar -cvf  #{options.target}/#{snakeized}.jar -C #{options.target}/#{snakeized} . "
+jar_dir = File.join(options.target, options.jar_name)
+directory jar_dir
+
+task :compile => jar_dir do
+  sh "$JAVA_HOME/../bin/javac -cp #{classpath(options)} -d #{jar_dir} #{srcs(options)}"
 end
 
-task :dump_classpath do
-  puts classpath(options, ':')
+task :jar => :compile do
+  sh "jar -cvf  #{jar_dir}.jar -C #{jar_dir} . "
 end
 
-task :default => [:compile]
+task :default => [:jar]
