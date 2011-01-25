@@ -1,26 +1,9 @@
 h1. Hbase Bulkloader
 
-Very simple bulk loader for hbase.
-
-
-h2. Caveats
-
-@HADOOP_CLASSPATH@ needs to be defined in @/etc/hadoop/conf/hadoop-env.sh@ properly. That is:
+A bulkloader for HBase that explores various strategies. The sanest, and most mentally gentle, is probably the
+pig loader:
 
 <pre><code>
-export HADOOP_CLASSPATH=<stuff>:$HADOOP_CLASSPATH
+data = LOAD '$INPUT' AS (field_1:chararray, field_2:int); -- etc.
+STORE data INTO '$TABLE' USING com.infochimps.hbase.pig.HBaseStorage('$CF:field_1 $CF:field_2');
 </code></pre>
-
-Note the last bit. This allows us to set extra hadoop classpath entries, say, on the command line.
-
-h2. Usage
-
-Dumb simple at the moment: you have data that is exactly 4 TAB separated fields (row key, column family, qualifier, value).
-
-Assuming you write into a table called "foobar" then:
-
-<pre><code>
-bin/load --table_name=foobar /path/to/input_data
-</code></pre>
-
-will launch a hadoop job to load data on the map side. No reduces.
