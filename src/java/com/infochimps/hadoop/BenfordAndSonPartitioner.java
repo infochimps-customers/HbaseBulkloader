@@ -1,4 +1,4 @@
-package org.apache.hadoop.hbase.mapreduce;
+package com.infochimps.hadoop;
 
 import java.util.Random;
 import org.apache.commons.logging.Log;
@@ -24,7 +24,7 @@ public class BenfordAndSonPartitioner<VALUE> extends Partitioner<ImmutableBytesW
     String keyString = Bytes.toString(key.get());
     String prefix    = keyString.substring(0,3);
 
-    Float bin = (Float)TwitterUserIdDistribution.distribution.get(prefix);
+    Float bin = (Float)TwitterUserIdDistribution.distribution.get(prefix); // Yikes, FIXME!
     // Float bin = (Float)BenfordAndSon.distribution.get(prefix);
     int part  = (int)(bin.floatValue()*reduces);
     if (randgen.nextDouble() < 0.001) {LOG.info("key = "+key.toString()+", bin = "+bin+", prefix = "+prefix+", part = "+part);};

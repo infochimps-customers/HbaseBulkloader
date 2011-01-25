@@ -61,9 +61,9 @@ import com.google.common.collect.Lists;
  * 
  *
  */
-public class FooStorage extends LoadFunc implements StoreFuncInterface, LoadPushDown {
+public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPushDown {
     
-    private static final Log LOG = LogFactory.getLog(FooStorage.class);
+    private static final Log LOG = LogFactory.getLog(HBaseStorage.class);
 
     private final static String STRING_CASTER = "UTF8StorageConverter";
     private final static String BYTE_CASTER = "HBaseBinaryConverter";
@@ -114,7 +114,7 @@ public class FooStorage extends LoadFunc implements StoreFuncInterface, LoadPush
      * @throws ParseException when unale to parse arguments
      * @throws IOException 
      */
-    public FooStorage(String columnList) throws ParseException, IOException {
+    public HBaseStorage(String columnList) throws ParseException, IOException {
         this(columnList,"");
     }
 
@@ -132,7 +132,7 @@ public class FooStorage extends LoadFunc implements StoreFuncInterface, LoadPush
      * @throws ParseException 
      * @throws IOException 
      */
-    public FooStorage(String columnList, String optString) throws ParseException, IOException {
+    public HBaseStorage(String columnList, String optString) throws ParseException, IOException {
         populateValidOptions();
         String[] colNames = columnList.split(" ");
         String[] optsArr = optString.split(" ");

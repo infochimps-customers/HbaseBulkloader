@@ -1,3 +1,5 @@
+package com.infochimps.hbase;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -24,7 +26,6 @@ import org.apache.hadoop.util.*;
 import org.apache.hadoop.util.ToolRunner;
 
 import com.google.common.base.Function;
-import org.apache.hadoop.hbase.KeyValue;
 /*
  * Sample uploader.
  * 
@@ -51,75 +52,62 @@ import org.apache.hadoop.hbase.KeyValue;
  * <p>This code was written against hbase 0.1 branch.
  */
 
-public class HbaseGraphBulkLoader extends Configured implements Tool {
-
-    // configuration parameters
-    // hbase.table.name should contain the name of the table
-    public static String HBASE_TABLE_NAME   = "hbase.table.name";
-    // hbase.family.name should contain the name of the column family
-    public static String HBASE_FAMILY_NAME  = "hbase.family.name";
-    // hbase.column.names should contain a comma delimited list of strings
-    // to be used as the column names (aka qualifiers) for the data inserts
-    public static String HBASE_DEFAULT_VALUE = "hbase.default.value";
-
-    public static class HbaseGraphLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
-        private byte[] family;
-        private byte[] value;
-
-        private long checkpoint = 1000;
+public class HbaseBulkloader extends Configured implements Tool {
+    
+    public static class HbaseLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
+        
+        private long checkpoint = 100;
         private long count = 0;
-
-
-        @Override
-        public void setup(Context context) {
-            Configuration config = context.getConfiguration();
-            value = Bytes.toBytes(config.get(HBASE_DEFAULT_VALUE,""));
-            family = Bytes.toBytes( config.get(HBASE_FAMILY_NAME));
-        }
-
-        @Override
+        
         public void map(LongWritable key, Text line, Context context) throws IOException {
             String[] fields = line.toString().split("\t");
-
-            // ignore rows with less than three fields
-            if(fields.length >= 3) {
-                byte[] rowkey = Bytes.toBytes( fields[1] );
-                byte[] column = Bytes.toBytes( fields[2] );
-                // Create Put
-                Put put = new Put( rowkey );
-                put.add(family,column,value);
-                put.setWriteToWAL(false);
-                try {
-                    context.write(new ImmutableBytesWritable(rowkey), put);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-                // Set status every checkpoint lines
-                if(++count % checkpoint == 0) {
-                    context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
-                }
+            if(fields.length != 4) {
+                return;
             }
-            
+      
+            // Extract each value
+            byte [] row = Bytes.toBytes(fields[0]);
+            byte [] family = Bytes.toBytes(fields[1]);
+            byte [] qualifier = Bytes.toBytes(fields[2]);
+            byte [] value = Bytes.toBytes(fields[3]);
+      
+            // Create Put
+            Put put = new Put(row);
+            put.add(family, qualifier, value);
+      
+            // Uncomment below to disable WAL. This will improve performance but means
+            // you will experience data loss in the case of a RegionServer crash.
+            // put.setWriteToWAL(false);
+      
+            try {
+                context.write(new ImmutableBytesWritable(row), put);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+      
+            // Set status every checkpoint lines
+            if(++count % checkpoint == 0) {
+                context.setStatus("Emitting Put " + count);
+            }
         }
-
-
     }
         
     public int run(String[] args) throws Exception {
-       Job job  = new Job(getConf());
 
+        Job job  = new Job(getConf());
+        
         // Set job class and job name
-        job.setJarByClass(HbaseGraphBulkLoader.class);
-        job.setJobName("HbaseGraphBulkLoader");
+        job.setJarByClass(HbaseBulkloader.class);
+        job.setJobName("HbaseBulkloader");
 
         // Set mapper class and reducer class
-        job.setMapperClass(HbaseGraphLoadMapper.class);
+        job.setMapperClass(HbaseLoadMapper.class);
         job.setNumReduceTasks(0);
 
         // Hbase specific setup
         Configuration conf = job.getConfiguration();
-        TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job);
+        TableMapReduceUtil.initTableReducerJob(conf.get("hbase.table.name"), null, job);
+        //
 
         // Handle input path
         List<String> other_args = new ArrayList<String>();
@@ -134,7 +122,7 @@ public class HbaseGraphBulkLoader extends Configured implements Tool {
     }
 
     public static void main(String[] args) throws Exception {
-        int res = ToolRunner.run(HBaseConfiguration.create(), new HbaseGraphBulkLoader(), args);
+        int res = ToolRunner.run(HBaseConfiguration.create(), new HbaseBulkloader(), args);
         System.exit(res);
     }
 }

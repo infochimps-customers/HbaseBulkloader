@@ -1,4 +1,4 @@
-package org.apache.hadoop.hbase.mapreduce;
+package com.infochimps.hbase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -16,6 +16,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.mapreduce.KeyValueSortReducer;
+import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.PerformanceEvaluation;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
@@ -32,7 +34,6 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-// import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner;
     
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;

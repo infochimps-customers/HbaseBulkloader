@@ -5,7 +5,7 @@
  *
  */
 
-package org.apache.hadoop.hbase.mapreduce;
+package com.infochimps.hadoop;
 
 import java.util.Map;
 import java.util.HashMap;

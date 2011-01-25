@@ -1,3 +1,5 @@
+package com.infochimps.hbase;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -51,7 +53,7 @@ import org.apache.hadoop.hbase.KeyValue;
  * <p>This code was written against hbase 0.1 branch.
  */
 
-public class HbaseAdjacencyGraphBulkLoader extends Configured implements Tool {
+public class HbaseGraphTableBulkLoader extends Configured implements Tool {
 
     // configuration parameters
     // hbase.table.name should contain the name of the table
@@ -60,20 +62,35 @@ public class HbaseAdjacencyGraphBulkLoader extends Configured implements Tool {
     public static String HBASE_FAMILY_NAME  = "hbase.family.name";
     // hbase.column.names should contain a comma delimited list of strings
     // to be used as the column names (aka qualifiers) for the data inserts
-    public static String HBASE_DEFAULT_VALUE = "hbase.default.value";
+    public static String HBASE_COLUMN_NAMES = "hbase.column.names";
+    // hbase.key.index should contain a zero based index of the column to be used
+    // as the row key
+    public static String HBASE_KEY_INDEXES    = "hbase.key.indexes";
 
-    public static class HbaseGraphLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
+    public static class HbaseGraphTableLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
+        private byte[][] fieldNameBytes;
         private byte[] family;
-        private byte[] value;
+        private int[] keyFieldIndexes;
 
         private long checkpoint = 1000;
         private long count = 0;
 
-
         @Override
         public void setup(Context context) {
             Configuration config = context.getConfiguration();
-            value = Bytes.toBytes(config.get(HBASE_DEFAULT_VALUE,""));
+            String[] fieldNames = config.getStrings(HBASE_COLUMN_NAMES);
+            fieldNameBytes = new byte[fieldNames.length][];
+            String[] keys = config.getStrings(HBASE_KEY_INDEXES);
+            keyFieldIndexes = new int[keys.length];
+            for(int i=0;i<keys.length;++i) {
+                keyFieldIndexes[i] = Integer.parseInt(keys[i]);
+            }
+            for(int i=0;i<fieldNames.length;++i) {
+                if(fieldNames[i].equals("-"))
+                    fieldNameBytes[i] = null;
+                else
+                    fieldNameBytes[i] = Bytes.toBytes(fieldNames[i]);
+            }
             family = Bytes.toBytes( config.get(HBASE_FAMILY_NAME));
         }
 
@@ -81,39 +98,66 @@ public class HbaseAdjacencyGraphBulkLoader extends Configured implements Tool {
         public void map(LongWritable key, Text line, Context context) throws IOException {
             String[] fields = line.toString().split("\t");
 
-            byte[] rowkey = Bytes.toBytes( fields[0] );
-            byte[] column;
-            // Create Put
-            Put put = new Put( rowkey );
-            for(int i=1; i<fields.length; ++i) {
-                column = Bytes.toBytes( fields[i] );
-                put.add(family,column,value);
-            }
-            put.setWriteToWAL(false);
+            StringBuffer keybuf = new StringBuffer();
             try {
-                context.write(new ImmutableBytesWritable(rowkey), put);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-      
-            // Set status every checkpoint lines
-            if(++count % checkpoint == 0) {
-                context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey) );
+                // build key out of keyfields separated by ":"
+                // all keyfieds must be non-empty, or we skip the recored
+                for (int i = 0; i < keyFieldIndexes.length; ++i) {
+                    if( fields[keyFieldIndexes[i]].length() == 0) {
+                        // TODO - define a more appropriate exection
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+                    if (i > 0) {
+                        keybuf.append(":");
+                    }
+                    keybuf.append(fields[keyFieldIndexes[i]]);
+                }
+
+                byte[] rowkey = Bytes.toBytes(keybuf.toString());
+
+                // Create Put
+                Put put = new Put(rowkey);
+
+                for (int i = 0; i < fields.length && i < fieldNameBytes.length; ++i) {
+                    // skip name/value if the name was given as a "-"
+                    if (fieldNameBytes[i] == null) {
+                        continue;
+                    }
+                    // skip name/value if the value is empty
+                    if (fields[i].length() < 1) {
+                        continue;
+                    }
+                    put.add(family, fieldNameBytes[i], Bytes.toBytes(fields[i]));
+                }
+
+                // Uncomment below to disable WAL. This will improve performance but means
+                // you will experience data loss in the case of a RegionServer crash.
+
+                try {
+                    context.write(new ImmutableBytesWritable(rowkey), put);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                // Set status every checkpoint lines
+                if (++count % checkpoint == 0) {
+                    context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkey));
+                }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                // TODO: increment a counter or something
             }
         }
-
-
     }
         
     public int run(String[] args) throws Exception {
        Job job  = new Job(getConf());
 
         // Set job class and job name
-        job.setJarByClass(HbaseGraphBulkLoader.class);
-        job.setJobName("HbaseGraphBulkLoader");
+        job.setJarByClass(HbaseGraphTableBulkLoader.class);
+        job.setJobName("HbaseGraphTableBulkLoader");
 
         // Set mapper class and reducer class
-        job.setMapperClass(HbaseGraphLoadMapper.class);
+        job.setMapperClass(HbaseGraphTableLoadMapper.class);
         job.setNumReduceTasks(0);
 
         // Hbase specific setup
@@ -133,7 +177,8 @@ public class HbaseAdjacencyGraphBulkLoader extends Configured implements Tool {
     }
 
     public static void main(String[] args) throws Exception {
-        int res = ToolRunner.run(HBaseConfiguration.create(), new HbaseGraphBulkLoader(), args);
+	Configuration config = HBaseConfiguration.create();
+        int res = ToolRunner.run(config, new HbaseGraphTableBulkLoader(), args);
         System.exit(res);
     }
 }
