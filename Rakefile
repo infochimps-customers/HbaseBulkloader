@@ -9,7 +9,7 @@ Settings.define :src,         :default => "#{WORK_DIR}/src",                :des
 Settings.define :target,      :default => "#{WORK_DIR}/build",              :description => "Build target, this is where compiled classes live"
 Settings.define :main_class,  :default => "HbaseBulkloader",                :description => "Main java class to run"
 Settings.define :hadoop_home, :default => "/usr/lib/hadoop",                :description => "Path to hadoop installation",       :env_var => "HADOOP_HOME"
-Settings.define :pig_home,    :default => "/usr/lib/pig",                   :description => "Path to pig installation",  :env_var => "PIG_HOME"
+Settings.define :pig_home,    :default => "/usr/local/share/pig",           :description => "Path to pig installation",  :env_var => "PIG_HOME"
 Settings.define :hbase_home,  :default => "/usr/lib/hbase",                 :description => "Path to hbase installation",        :env_var => "HBASE_HOME"
 Settings.resolve!
 options = Settings.dup
@@ -25,6 +25,7 @@ def classpath options, delim=":"
     "#{options.hbase_home}/hbase*.jar",
     "#{options.hbase_home}/lib/*.jar",
     "#{options.pig_home}/pig*.jar",
+    "#{options.pig_home}/build/pig*.jar",
     "#{options.pig_home}/lib/*.jar",
   ].each{|jar| cp << jar}
   cp.join(delim)
