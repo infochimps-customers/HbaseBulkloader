@@ -34,7 +34,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-    
+import com.infochimps.hadoop.BenfordAndSonPartitioner;
+
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.util.ToolRunner;
@@ -93,7 +94,7 @@ public class DataChunkToHFiles extends Configured implements Tool {
         job.setOutputFormatClass(HFileOutputFormat.class);
                 
         // We will almost certainly want to use a different partitioner
-        // job.setPartitionerClass(BenfordAndSonPartitioner.class);
+        job.setPartitionerClass(BenfordAndSonPartitioner.class);
         //
         
         // Try total order partitioner with sampling

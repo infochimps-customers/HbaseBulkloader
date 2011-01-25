@@ -1,14 +1,13 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
-require 'wukong'
 require 'configliere' ; Configliere.use(:commandline, :env_var, :define)
 
 Settings.define :table_name,       :required => true,                                  :description => "Hbase table to write data into"
 Settings.define :column_family,                                                        :description => "HBase column family to write to, required for HFilesWriter"
-Settings.define :key_field,                                                            :description => ""
-Settings.define :hfiles,           :default => false
-Settings.define :reduce_tasks,     :default => 10
+Settings.define :key_field,                                                            :description => "Zero indexed field to use as the key field"
+Settings.define :hfiles,           :default => false,                                  :description => "Whether or not to write into HFiles or table"
+Settings.define :reduce_tasks,     :default => 10,                                     :description => "Number of reduce tasks to use"
 Settings.define :hadoop_home,      :default => "/usr/lib/hadoop",                      :description => "Path to hadoop installation", :env_var => "HADOOP_HOME"
 Settings.define :hbase_home,       :default => "/usr/lib/hbase",                       :description => "Path to hadoop installation", :env_var => "HBASE_HOME"
 Settings.define :fields,           :default => "rsrc,user_id,scraped_at,screen_name,protected,followers_count,friends_count,statuses_count,favourites_count,created_at,sid,is_full,health"
@@ -17,7 +16,7 @@ Settings.resolve!
 
 raise "No input file specified." if Settings.rest.first.blank?
 
-class Wonderdog
+class HBaseLoader
   attr_accessor :options
   def initialize
     @options = Settings.dup
@@ -71,5 +70,5 @@ class Wonderdog
   end
 end
 
-runner = Wonderdog.new
+runner = HBaseLoader.new
 runner.execute
