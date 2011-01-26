@@ -342,9 +342,15 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
         ResourceFieldSchema[] fieldSchemas = (schema_ == null) ? null : schema_.getFields();
         Put put=new Put(objToBytes(t.get(0), 
                 (fieldSchemas == null) ? DataType.findType(t.get(0)) : fieldSchemas[0].getType()));
+        put.setWriteToWAL(false);
+
         long ts = System.currentTimeMillis();
         if (tsField_!=-1) {
-            ts = Long.valueOf(t.get(tsField_).toString());
+            try {
+                ts = Long.valueOf(t.get(tsField_).toString());
+            } catch (Exception e) {
+                ts = System.currentTimeMillis();
+            }
         }
 
         for (int i=1;i<t.size();++i){
