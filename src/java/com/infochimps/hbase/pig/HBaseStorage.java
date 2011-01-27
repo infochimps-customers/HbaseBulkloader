@@ -340,31 +340,34 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
     @Override
     public void putNext(Tuple t) throws IOException {
         ResourceFieldSchema[] fieldSchemas = (schema_ == null) ? null : schema_.getFields();
-        Put put=new Put(objToBytes(t.get(0), 
-                (fieldSchemas == null) ? DataType.findType(t.get(0)) : fieldSchemas[0].getType()));
-        put.setWriteToWAL(false);
+        byte[] rowKey = objToBytes(t.get(0), (fieldSchemas == null) ? DataType.findType(t.get(0)) : fieldSchemas[0].getType());
+        if(rowKey != null) {
+            Put put=new Put(objToBytes(t.get(0), 
+                                       (fieldSchemas == null) ? DataType.findType(t.get(0)) : fieldSchemas[0].getType()));
+            put.setWriteToWAL(false);
 
-        long ts = System.currentTimeMillis();
-        if (tsField_!=-1) {
+            long ts = System.currentTimeMillis();
+            if (tsField_!=-1) {
+                try {
+                    ts = Long.valueOf(t.get(tsField_).toString());
+                } catch (Exception e) {
+                    ts = System.currentTimeMillis();
+                }
+            }
+
+            for (int i=1;i<t.size();++i){
+                byte[] colVal = objToBytes(t.get(i), (fieldSchemas == null) ? DataType.findType(t.get(i)) : fieldSchemas[i].getType());
+                if (colVal!=null) {   // Don't add null column values
+                    put.add(columnList_.get(i-1), ts, colVal);
+                }
+            }
             try {
-                ts = Long.valueOf(t.get(tsField_).toString());
-            } catch (Exception e) {
-                ts = System.currentTimeMillis();
+                if (!put.isEmpty()) { // Don't try to write a row with 0 columns
+                    writer.write(null, put);
+                }
+            } catch (InterruptedException e) {
+                throw new IOException(e);
             }
-        }
-
-        for (int i=1;i<t.size();++i){
-            byte[] colVal = objToBytes(t.get(i), (fieldSchemas == null) ? DataType.findType(t.get(i)) : fieldSchemas[i].getType());
-            if (colVal!=null) {   // Don't add null column values
-                put.add(columnList_.get(i-1), ts, colVal);
-            }
-        }
-        try {
-            if (!put.isEmpty()) { // Don't try to write a row with 0 columns
-                writer.write(null, put);
-            }
-        } catch (InterruptedException e) {
-            throw new IOException(e);
         }
     }
     
