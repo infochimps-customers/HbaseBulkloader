@@ -1,32 +1,45 @@
 package com.infochimps.hbase;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
+import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Map.Entry;
+import java.util.List;
 
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.mapreduce.Counter;
+import java.util.Random;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.mapreduce.KeyValueSortReducer;
+import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.PerformanceEvaluation;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import com.infochimps.hadoop.BenfordAndSonPartitioner;
+
+import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.util.ToolRunner;
 
-import com.google.common.base.Function;
-import org.apache.hadoop.hbase.KeyValue;
 
 /* This class is specifically desinged to load the data from
  * a_atsigns_b into an a_rel_b hbase table with the following format:
@@ -37,13 +50,12 @@ import org.apache.hadoop.hbase.KeyValue;
  */      
 public class HbaseAFollowsBLoader extends Configured implements Tool {
 
-    // configuration parameters
-    // hbase.table.name should contain the name of the table
+    private final static Log LOG = LogFactory.getLog(HbaseAFollowsBLoader.class);
     public static String HBASE_TABLE_NAME   = "hbase.table.name";
 
-    public static class HbaseAFollowsBLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, Put> {
+    public static class HbaseAFollowsBLoadMapper extends Mapper<LongWritable, Text, ImmutableBytesWritable, KeyValue> {
  
-        private long checkpoint = 1000;
+        private long checkpoint = 10000;
         private long count = 0;
 
 	private byte[] family;
@@ -54,15 +66,14 @@ public class HbaseAFollowsBLoader extends Configured implements Tool {
 	static enum Problems { MISSING_A_ID, MISSING_B_ID, MISSING_RELATIONSHIP, MISSING_TWEET_ID, BAD_RECORD };
 
         @Override
-        public void setup(Context context) {
+            public void setup(Context context) throws IOException, InterruptedException {
+            super.setup(context);
             Configuration config = context.getConfiguration();
-	    
 	    // Set up some constants
 	    family = Bytes.toBytes("follow");
 	    ab     = Bytes.toBytes("ab");
 	    ba     = Bytes.toBytes("ba");
 	    value  = Bytes.toBytes("");
-
         }
 
 
@@ -73,7 +84,7 @@ public class HbaseAFollowsBLoader extends Configured implements Tool {
             StringBuffer keyab = new StringBuffer();
 	    StringBuffer keyba = new StringBuffer();
            	    
-	    // If there is anything wron with the record, we will throw an ArrayIndexOutOfBoundsException
+	    // If there is anything wrong with the record, we will throw an ArrayIndexOutOfBoundsException
 	    // which will be ignored, but we will just move on to the next record.
             try {
 		// skip bad records that do not have rectified user ids
@@ -97,28 +108,20 @@ public class HbaseAFollowsBLoader extends Configured implements Tool {
                 byte[] rowkeyab = Bytes.toBytes(keyab.toString());
                 byte[] rowkeyba = Bytes.toBytes(keyba.toString());
 
-                // Create Puts
-                Put putab = new Put(rowkeyab);
-                Put putba = new Put(rowkeyba);
-
-		putab.add(family, ab, value);
-		putba.add(family, ba, value);
-       
-                // Uncomment below to disable WAL. This will improve performance but means
-                // you will experience data loss in the case of a RegionServer crash.
-		putab.setWriteToWAL(false);
-		putba.setWriteToWAL(false);
+                // Create KeyValues
+                KeyValue kvab = new KeyValue(rowkeyab, family, ab,  System.currentTimeMillis(), value);
+                KeyValue kvba = new KeyValue(rowkeyba, family, ba,  System.currentTimeMillis(), value);
 
                 try {
-                    context.write(new ImmutableBytesWritable(rowkeyab), putab);
-                    context.write(new ImmutableBytesWritable(rowkeyba), putba);
+                    context.write(new ImmutableBytesWritable(rowkeyab), kvab);
+                    context.write(new ImmutableBytesWritable(rowkeyba), kvba);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
 
                 // Set status every checkpoint lines
                 if (++count % checkpoint == 0) {
-                    context.setStatus("Emitting Put: " + count + " - " + Bytes.toString(rowkeyab));
+                    context.setStatus("Emitting KeyValue: " + count + " - " + Bytes.toString(rowkeyab));
                 }
             } catch (ArrayIndexOutOfBoundsException e) {
 		context.getCounter(Problems.BAD_RECORD).increment(1);
@@ -133,13 +136,16 @@ public class HbaseAFollowsBLoader extends Configured implements Tool {
         job.setJarByClass(HbaseAFollowsBLoader.class);
         job.setJobName("HbaseAFollowsBLoader");
 
-        // Set mapper class and reducer class
-        job.setMapperClass(HbaseAFollowsBLoadMapper.class);
-        job.setNumReduceTasks(0);
+        job.setMapOutputKeyClass(ImmutableBytesWritable.class);
+        job.setMapOutputValueClass(KeyValue.class);
 
-        // Hbase specific setup
-        Configuration conf = job.getConfiguration();
-        TableMapReduceUtil.initTableReducerJob(conf.get( HBASE_TABLE_NAME ), null, job);
+        job.setMapperClass(HbaseAFollowsBLoadMapper.class);
+        job.setReducerClass(KeyValueSortReducer.class);
+        job.setOutputFormatClass(HFileOutputFormat.class);
+
+        // We will almost certainly want to use a different partitioner
+        job.setPartitionerClass(BenfordAndSonPartitioner.class);
+        //
 
         // Handle input path
         List<String> other_args = new ArrayList<String>();
@@ -147,6 +153,7 @@ public class HbaseAFollowsBLoader extends Configured implements Tool {
             other_args.add(args[i]);
         }
         FileInputFormat.setInputPaths(job, new Path(other_args.get(0)));
+        FileOutputFormat.setOutputPath(job, new Path(other_args.get(1)));
 
         // Submit job to server and wait for completion
         job.waitForCompletion(true);

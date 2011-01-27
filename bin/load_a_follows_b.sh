@@ -1,2 +1,1 @@
-hadoop jar ../build/hbase_bulkloader.jar HbaseAFollowsBLoader -Dhbase.table.name=a_rel_b s3://s3hdfs.infinitemonkeys.info/data/sn/tw/fixd/current/a_follows_b
-
+hadoop jar build/hbase_bulkloader.jar com.infochimps.hbase.HbaseAFollowsBLoader -libjars /usr/lib/hbase/lib/guava-r05.jar /tmp/streamed/a_follows_b /tmp/hfiles/a_follows_b

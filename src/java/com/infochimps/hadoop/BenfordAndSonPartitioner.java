@@ -26,9 +26,15 @@ public class BenfordAndSonPartitioner<VALUE> extends Partitioner<ImmutableBytesW
 
     Float bin = (Float)TwitterUserIdDistribution.distribution.get(prefix); // Yikes, FIXME!
     // Float bin = (Float)BenfordAndSon.distribution.get(prefix);
-    int part  = (int)(bin.floatValue()*reduces);
-    if (randgen.nextDouble() < 0.001) {LOG.info("key = "+key.toString()+", bin = "+bin+", prefix = "+prefix+", part = "+part);};
-
+    int part = 0;
+    if(bin!=null) {
+        part  = (int)(bin.floatValue()*reduces);
+        if (randgen.nextDouble() < 0.001) {LOG.info("key = "+key.toString()+", bin = "+bin+", prefix = "+prefix+", part = "+part);};
+    } else {
+        bin = 0.0f;
+        part  = (int)(bin.floatValue()*reduces);
+        if (randgen.nextDouble() < 0.001) {LOG.info("key = "+key.toString()+", bin = "+bin+", prefix = "+prefix+", part = "+part);};
+    }
     return part;
   }
 
