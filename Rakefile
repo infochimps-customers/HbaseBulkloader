@@ -24,7 +24,6 @@ def classpath options, delim=":"
     "#{options.hbase_home}/hbase*.jar",
     "#{options.hbase_home}/lib/*.jar",
     "#{options.pig_home}/pig*.jar",
-    "#{options.pig_home}/build/pig*.jar",
     "#{options.pig_home}/lib/*.jar",
   ].each{|jar| cp << jar}
   cp.join(delim)

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -35,6 +36,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.pig.LoadCaster;
 import org.apache.pig.LoadFunc;
 import org.apache.pig.LoadPushDown;
@@ -51,8 +53,11 @@ import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
+import org.apache.pig.data.BagFactory;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.apache.pig.impl.util.Utils;
+
+import org.apache.pig.backend.hadoop.hbase.HBaseTableInputFormat;
 
 import com.google.common.collect.Lists;
 
@@ -70,8 +75,10 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
     private final static String CASTER_PROPERTY = "pig.hbase.caster";
     
     private List<byte[]> columnList_ = Lists.newArrayList();
+    private List<byte[][]> input_columnList_ = Lists.newArrayList();
     private HTable m_table;
-    private HBaseConfiguration m_conf;
+    //private HBaseConfiguration m_conf;
+    private Configuration m_conf;
     private RecordReader reader;
     private RecordWriter writer;
     private Scan scan;
@@ -150,9 +157,10 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
         loadRowKey_ = configuredOptions_.hasOption("loadKey");  
         for (String colName : colNames) {
             columnList_.add(Bytes.toBytes(colName));
+            input_columnList_.add(Bytes.toByteArrays(colName.split(":")));
         }
 
-        m_conf = new HBaseConfiguration();
+        m_conf = HBaseConfiguration.create();
         String defaultCaster = m_conf.get(CASTER_PROPERTY, STRING_CASTER);
         String casterOption = configuredOptions_.getOptionValue("caster", defaultCaster);
         if (STRING_CASTER.equalsIgnoreCase(casterOption)) {
@@ -235,11 +243,29 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
                     startIndex++;
                 }
                 for (int i=0;i<columnList_.size();++i){
-                	// byte[] cell=result.getValue(columnList_.get(i));
-                	// if (cell!=null)
-                	//     tuple.set(i+startIndex, new DataByteArray(cell));
-                	// else
-                	//     tuple.set(i+startIndex, null);
+                    byte[][] col = input_columnList_.get(i);
+                    if (col.length==2) { // we've got a colfam:colname pair
+                        byte[] cell=result.getValue(col[0],col[1]);
+                        if (cell!=null) {
+                            if (cell.length > 0) {
+                                tuple.set(i+startIndex, new DataByteArray(cell));
+                            } else {
+                                tuple.set(i+startIndex, new DataByteArray("1")); // As in, the column exists but is empty?
+                            }
+                        } else {
+                            tuple.set(i+startIndex, null);
+                        }
+                    } else { // we've just got a colfam: 
+                        NavigableMap<byte[],byte[]> family = result.getFamilyMap(col[0]);
+                        DataBag bagged_family = BagFactory.getInstance().newDefaultBag();
+                        for (Map.Entry<byte[],byte[]> keyvalue : family.entrySet()) {
+                            Tuple entry = TupleFactory.getInstance().newTuple(2);
+                            entry.set(0, new DataByteArray(keyvalue.getKey()));
+                            entry.set(1, new DataByteArray(keyvalue.getValue()));
+                            bagged_family.add(entry);
+                        }
+                        tuple.set(i+startIndex, bagged_family);
+                    }
                 }
                 return tuple;
             }
@@ -251,7 +277,7 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
 
     @Override
     public InputFormat getInputFormat() {      
-        TableInputFormat inputFormat = new HBaseTableIFBuilder()
+        HBaseTableInputFormat inputFormat = new HBaseTableIFBuilder()
         .withLimit(limit_)
         .withGt(gt_)
         .withGte(gte_)
@@ -278,8 +304,15 @@ public class HBaseStorage extends LoadFunc implements StoreFuncInterface, LoadPu
         }
         m_table.setScannerCaching(caching_);
         m_conf.set(TableInputFormat.INPUT_TABLE, tablename);
-        scan.addColumns(columnList_.toArray(new byte[0][]));
+        for (byte[][] col : input_columnList_) {
+            if (col.length==2) {
+                scan.addColumn(col[0], col[1]);
+            } else {
+                scan.addFamily(col[0]);
+            }
+        }
         m_conf.set(TableInputFormat.SCAN, convertScanToString(scan));
+        m_conf.setBoolean("pig.splitCombination", false);
     }
 
     @Override
