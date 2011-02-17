@@ -106,14 +106,17 @@ public class DynamicFamilyStorage extends StoreFunc implements StoreFuncInterfac
     public void putNext(Tuple t) throws IOException {
         byte[] rowKey = objToBytes(t.get(0), DataType.findType(t.get(0))); // Convert row key to byte[]
         
-        if(rowKey != null && t.size() == 4) {
+        if(rowKey != null && t.size() >= 4) {
             long ts = System.currentTimeMillis();
             Put put = new Put(rowKey);
             put.setWriteToWAL(false);
             
             byte[] family  = objToBytes(t.get(1), DataType.findType(t.get(1)));
             byte[] colName = objToBytes(t.get(2), DataType.findType(t.get(2)));
-            byte[] colVal  = objToBytes(t.get(3), DataType.findType(t.get(3)));             
+            byte[] colVal  = objToBytes(t.get(3), DataType.findType(t.get(3)));
+            if (t.size() == 5) {
+                ts = Long.parseLong(t.get(4).toString());
+            }
             if (colVal!=null) {
                 put.add(family, colName, ts, colVal);
             }
