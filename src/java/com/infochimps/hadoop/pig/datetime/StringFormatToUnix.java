@@ -20,7 +20,7 @@ public class StringFormatToUnix extends EvalFunc<Long> {
 
         // Set the time to default or the output is in UTC
         DateTimeZone.setDefault(DateTimeZone.UTC);
-        String format            = "YYYYMMddhhmmss";
+        String format            = "YYYYMMddHHmmss";
         String date              = input.get(0).toString();
         DateTimeFormatter parser = DateTimeFormat.forPattern(format);
         DateTime result          = parser.parseDateTime(date);
