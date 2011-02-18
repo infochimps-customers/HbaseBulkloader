@@ -19,6 +19,7 @@ options = Settings.dup
 def classpath options, delim=":"
   cp = ["."]
   Dir[
+    "lib/*.jar",
     "#{options.hadoop_home}/hadoop*.jar",
     "#{options.hadoop_home}/lib/*.jar",
     "#{options.hbase_home}/hbase*.jar",
